@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>指数估值分析器 (星标收藏版)</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; }
+        .metric-badge { font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
+        .metric-pe { background-color: #dbeafe; color: #1e40af; } 
+        .metric-pb { background-color: #fce7f3; color: #9d174d; } 
+        .metric-ps { background-color: #ede9fe; color: #5b21b6; } 
+        .metric-ey { background-color: #dcfce7; color: #166534; } 
+        .spinner {
+            border: 3px solid rgba(0,0,0,0.1); width: 24px; height: 24px; border-radius: 50%;
+            border-left-color: #2563eb; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* 星星动画 */
+        .star-btn { transition: transform 0.2s; }
+        .star-btn:active { transform: scale(1.3); }
+        .tab-active { background-color: #2563eb; color: white; border-color: #2563eb; }
+        .tab-inactive { background-color: white; color: #4b5563; border-color: #e5e7eb; }
+        .tab-inactive:hover { background-color: #f9fafb; }
+    </style>
+</head>
+<body>
+
+<div id="app" class="container mx-auto p-4 max-w-[1600px]">
+    
+    <!-- 顶部栏 -->
+    <div class="bg-white rounded-xl shadow-sm p-4 mb-6 border border-gray-100 sticky top-0 z-30">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <span class="text-2xl">⭐</span> 指数估值追踪
+                    <span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full border border-yellow-200">收藏版</span>
+                </h1>
+                <p class="text-xs text-gray-500 mt-1">
+                    当前模型: <span class="font-mono font-bold text-blue-600">{{ model }}</span>
+                </p>
+            </div>
+
+            <div class="flex gap-3 items-center">
+                <button @click="showConfig = true" :class="apiKey ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200'" class="border px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:brightness-95 transition">
+                    {{ apiKey ? '⚙️ 配置 API' : '⚠️未配置 API' }}
+                </button>
+
+                <label class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow cursor-pointer text-sm font-bold flex items-center gap-2 transition active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>上传截图</span>
+                    <input type="file" @change="handleImageUploadAI" accept="image/*" class="hidden">
+                </label>
+                
+                <button @click="resetData" class="text-xs text-gray-400 hover:text-red-500 underline px-2">重置</button>
+            </div>
+        </div>
+        
+        <!-- 第二行：Tab切换 与 搜索 -->
+        <div class="mt-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            
+            <!-- Tab 切换按钮 -->
+            <div class="flex rounded-lg shadow-sm w-full md:w-auto">
+                <button @click="currentTab = 'all'" 
+                        :class="['px-5 py-2 text-sm font-bold rounded-l-lg border transition', currentTab === 'all' ? 'tab-active' : 'tab-inactive']">
+                    📋 全部指数
+                    <span class="ml-1 text-xs opacity-70 bg-black/10 px-1.5 rounded-full">{{ list.length }}</span>
+                </button>
+                <button @click="currentTab = 'starred'" 
+                        :class="['px-5 py-2 text-sm font-bold rounded-r-lg border-t border-b border-r transition', currentTab === 'starred' ? 'tab-active' : 'tab-inactive']">
+                    ⭐ 我的关注
+                    <span class="ml-1 text-xs opacity-70 bg-black/10 px-1.5 rounded-full">{{ starredCount }}</span>
+                </button>
+            </div>
+
+            <input v-model="searchQuery" type="text" placeholder="🔍 搜索名称或代码..." class="w-full md:w-64 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+    </div>
+
+    <!-- 表格 -->
+    <div class="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-3 py-3 text-center w-10 sticky left-0 bg-gray-50 z-20">⭐</th> <!-- 星标列 -->
+                        <th class="px-4 py-3 text-left font-semibold text-gray-600 sticky left-10 bg-gray-50 z-10">名称</th>
+                        <th class="px-2 py-3 text-left font-semibold text-gray-600">指标</th>
+                        <th class="px-2 py-3 text-right text-gray-400 text-xs">最低</th>
+                        <th class="px-2 py-3 text-right text-green-700 bg-green-50/50">低估</th>
+                        <th class="px-2 py-3 text-right text-orange-700 bg-orange-50/50">高估</th>
+                        <th class="px-2 py-3 text-right text-gray-400 text-xs">最高</th>
+                        <th class="px-4 py-3 text-right font-bold text-blue-900 bg-blue-50 border-l border-blue-100">当前值</th>
+                        <th class="px-2 py-3 text-center font-bold bg-blue-50">状态</th>
+                        <th class="px-2 py-3 text-right text-gray-500 bg-gray-50 border-l">距最低</th>
+                        <th class="px-2 py-3 text-right text-gray-500 bg-green-50/30">距低估</th>
+                        <th class="px-2 py-3 text-right text-gray-500 bg-orange-50/30">距高估</th>
+                        <th class="px-2 py-3 text-right text-gray-500 bg-red-50/30">距最高</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <tr v-for="item in enrichedList" :key="item.code" class="hover:bg-gray-50 transition group">
+                        
+                        <!-- 星标按钮列 -->
+                        <td class="px-3 py-2 text-center sticky left-0 bg-white group-hover:bg-gray-50 z-20 border-r border-gray-50 cursor-pointer" 
+                            @click="toggleStar(item)" title="添加/取消关注">
+                            <span class="star-btn text-lg block">
+                                {{ item.isStarred ? '⭐' : '☆' }}
+                            </span>
+                        </td>
+
+                        <td class="px-4 py-2 sticky left-10 bg-white group-hover:bg-gray-50 z-10 border-r border-gray-100">
+                            <div class="font-bold text-gray-800">{{ item.name }}</div>
+                            <div class="text-xs text-gray-400 font-mono">{{ item.code }}</div>
+                        </td>
+                        <td class="px-2 py-2">
+                            <span :class="['metric-badge', getMetricClass(item.metric)]">{{ item.metric }}</span>
+                        </td>
+                        <td class="px-2 py-2 text-right text-xs text-gray-400">{{ item.min.toFixed(2) }}</td>
+                        <td class="px-2 py-2 text-right font-medium text-green-700 bg-green-50/30">{{ item.low.toFixed(2) }}</td>
+                        <td class="px-2 py-2 text-right font-medium text-orange-700 bg-orange-50/30">{{ item.high.toFixed(2) }}</td>
+                        <td class="px-2 py-2 text-right text-xs text-gray-400">{{ item.max.toFixed(2) }}</td>
+                        <td class="px-4 py-2 text-right font-bold text-blue-900 bg-blue-50 border-l border-blue-100 cursor-pointer hover:bg-blue-100" @click="manualEdit(item)">
+                            {{ item.currentVal ? item.currentVal.toFixed(2) : '-' }}
+                        </td>
+                        <td class="px-2 py-2 text-center bg-blue-50">
+                            <span v-if="item.status" :class="getStatusClass(item.status)">{{ item.status }}</span>
+                        </td>
+                        <td class="px-2 py-2 text-right text-xs font-mono border-l" :class="getColor(item.distMin)">{{ formatPercent(item.distMin) }}</td>
+                        <td class="px-2 py-2 text-right text-xs font-mono bg-green-50/30" :class="getColor(item.distLow)">{{ formatPercent(item.distLow) }}</td>
+                        <td class="px-2 py-2 text-right text-xs font-mono bg-orange-50/30" :class="getColor(item.distHigh)">{{ formatPercent(item.distHigh) }}</td>
+                        <td class="px-2 py-2 text-right text-xs font-mono bg-red-50/30" :class="getColor(item.distMax)">{{ formatPercent(item.distMax) }}</td>
+                    </tr>
+                    
+                    <!-- 空状态提示 -->
+                    <tr v-if="enrichedList.length === 0">
+                        <td colspan="13" class="px-4 py-8 text-center text-gray-400 bg-gray-50">
+                            <div v-if="currentTab === 'starred'">
+                                <p class="text-lg">⭐ 暂无关注的指数</p>
+                                <p class="text-sm mt-2">请切换到“全部指数”，点击左侧的星星添加关注。</p>
+                            </div>
+                            <div v-else>
+                                未找到匹配的指数
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 配置 & 诊断弹窗 -->
+    <div v-if="showConfig" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg overflow-y-auto max-h-[90vh]">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">⚙️ API 配置 & 模型诊断</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Google Gemini API Key</label>
+                    <input v-model="tempApiKey" type="password" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="AIzaSy...">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">API 基础地址</label>
+                    <input v-model="tempBaseUrl" type="text" class="w-full border rounded-lg px-3 py-2 font-mono text-sm" placeholder="https://generativelanguage.googleapis.com">
+                </div>
+
+                <!-- 模型选择 -->
+                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                    <label class="block text-sm font-bold text-blue-800 mb-2">选择模型</label>
+                    <div class="flex gap-2 mb-2">
+                        <input v-model="tempModel" type="text" class="flex-1 border rounded px-3 py-2 text-sm font-bold text-blue-700" placeholder="点击下方检测...">
+                        <button @click="checkModels" :disabled="isChecking" class="bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1">
+                            <span v-if="isChecking" class="spinner border-white w-4 h-4"></span>
+                            <span>{{ isChecking ? '检测中...' : '🔍 检测模型' }}</span>
+                        </button>
+                    </div>
+                    <div v-if="availableModels.length > 0" class="mt-2">
+                        <p class="text-xs text-gray-500 mb-1">可用模型 (点击选择):</p>
+                        <div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                            <span v-for="m in availableModels" :key="m" @click="tempModel = m" 
+                                  class="text-xs bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded cursor-pointer hover:bg-blue-100">
+                                {{ m }}
+                            </span>
+                        </div>
+                    </div>
+                    <div v-else-if="checkError" class="mt-2 text-xs text-red-500 bg-red-50 p-2 rounded">
+                        检测失败: {{ checkError }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 mt-6 border-t pt-4">
+                <button @click="showConfig = false" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">取消</button>
+                <button @click="saveConfig" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold shadow-lg">保存设置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 运行遮罩 -->
+    <div v-if="isLoading" class="fixed inset-0 bg-white/95 z-50 flex flex-col items-center justify-center text-center">
+        <div class="spinner w-10 h-10 border-4 border-gray-200 border-l-blue-600 mb-4"></div>
+        <h3 class="text-xl font-bold text-slate-800">AI 正在阅读图片...</h3>
+        <p class="text-slate-500 text-sm mt-2 max-w-xs bg-gray-50 px-3 py-1 rounded border">
+            使用模型: {{ model }}
+        </p>
+    </div>
+
+</div>
+
+<script>
+    const { createApp } = Vue;
+
+    // 初始数据
+    const seedData = [
+        {code: "930743", name: "生物科技", metric: "市盈率", min: 33.00, low: 57.00, high: 81.00, max: 135.00, market: "A股"},
+        {code: "399989", name: "中证医疗", metric: "市盈率", min: 32.00, low: 55.00, high: 75.00, max: 140.00, market: "A股"},
+        {code: "931357", name: "沪港深消费", metric: "市盈率", min: 25.00, low: 33.00, high: 42.00, max: 56.00, market: "A股"},
+        {code: "399997", name: "中证白酒", metric: "市盈率", min: 15.00, low: 30.00, high: 40.00, max: 71.00, market: "A股"},
+        {code: "000978", name: "医药100", metric: "市盈率", min: 23.00, low: 28.00, high: 36.00, max: 63.00, market: "A股"},
+        {code: "000932", name: "中证消费", metric: "市盈率", min: 17.00, low: 30.00, high: 40.00, max: 53.00, market: "A股"},
+        {code: "930653", name: "食品饮料", metric: "市盈率", min: 18.00, low: 30.00, high: 40.00, max: 65.00, market: "A股"},
+        {code: "931068", name: "消费龙头", metric: "市盈率", min: 16.00, low: 24.00, high: 32.00, max: 45.00, market: "A股"},
+        {code: "H30094", name: "消费红利", metric: "市盈率", min: 11.00, low: 25.00, high: 33.00, max: 45.00, market: "港股"},
+        {code: "HSTECH", name: "恒生科技", metric: "市销率", min: 3.20, low: 4.00, high: 5.60, max: 9.00, market: "港股"},
+        {code: "H30533", name: "中概互联", metric: "市销率", min: 3.20, low: 4.00, high: 5.60, max: 12.80, market: "港股"},
+        {code: "000919", name: "300价值", metric: "盈利收益率", min: 16.60, low: 10.00, high: 6.40, max: 2.22, market: "A股"},
+        {code: "000922", name: "中证红利", metric: "盈利收益率", min: 16.60, low: 10.00, high: 6.40, max: 1.60, market: "A股"},
+        {code: "399324", name: "深红利", metric: "市盈率", min: 11.00, low: 15.00, high: 22.00, max: 44.00, market: "A股"},
+        {code: "SPG120035", name: "全球医疗", metric: "市盈率", min: 15.00, low: 21.00, high: 30.00, max: 45.00, market: "美股"},
+        {code: "707717", name: "MSCI质量", metric: "市盈率", min: 17.00, low: 26.00, high: 38.00, max: 55.00, market: "美股"},
+        {code: "CSPSADRP", name: "红利机会", metric: "市盈率", min: 8.00, low: 13.00, high: 20.00, max: 30.00, market: "美股"},
+        {code: "000015", name: "上证红利", metric: "盈利收益率", min: 17.50, low: 10.00, high: 6.40, max: 2.27, market: "A股"},
+        {code: "000905", name: "500增强", metric: "市盈率", min: 17.00, low: 25.00, high: 40.00, max: 93.00, market: "A股"},
+        {code: "930782", name: "500低波动", metric: "市盈率", min: 17.00, low: 24.00, high: 30.00, max: 60.00, market: "A股"},
+        {code: "000989", name: "可选消费", metric: "市盈率", min: 15.00, low: 18.00, high: 26.00, max: 45.00, market: "A股"},
+        {code: "000906", name: "中证800", metric: "市盈率", min: 9.00, low: 15.00, high: 19.00, max: 52.00, market: "A股"},
+        {code: "399975", name: "证券行业", metric: "市净率", min: 1.05, low: 1.60, high: 2.20, max: 4.80, market: "A股"},
+        {code: "000925", name: "基本面50", metric: "盈利收益率", min: 16.60, low: 10.00, high: 6.40, max: 2.22, market: "A股"},
+        {code: "IXY", name: "美股消费", metric: "市盈率", min: 15.00, low: 21.00, high: 30.00, max: 45.00, market: "美股"},
+        {code: "399995", name: "基建行业", metric: "市净率", min: 0.92, low: 1.10, high: 1.80, max: 3.60, market: "A股"},
+        {code: "S5INFT", name: "标普科技", metric: "市盈率", min: 15.00, low: 21.00, high: 30.00, max: 90.00, market: "美股"},
+        {code: "930697", name: "家用电器", metric: "市盈率", min: 12.00, low: 17.00, high: 20.00, max: 28.00, market: "A股"},
+        {code: "931142", name: "竞争力指数", metric: "市盈率", min: 10.00, low: 13.00, high: 18.00, max: 23.00, market: "A股"},
+        {code: "950090", name: "50AH优选", metric: "盈利收益率", min: 16.60, low: 10.00, high: 6.40, max: 2.22, market: "港股"},
+        {code: "399393", name: "地产行业", metric: "市净率", min: 1.20, low: 1.60, high: 2.20, max: 4.00, market: "A股"},
+        {code: "000300", name: "沪深300", metric: "市盈率", min: 8.00, low: 12.00, high: 17.00, max: 49.00, market: "A股"},
+        {code: "000852", name: "中证1000", metric: "市盈率", min: 19.00, low: 35.00, high: 48.00, max: 145.00, market: "A股"},
+        {code: "399006", name: "创业板", metric: "市盈率", min: 18.00, low: 25.00, high: 45.00, max: 138.00, market: "A股"},
+        {code: "HSI", name: "恒生指数", metric: "盈利收益率", min: 14.50, low: 10.00, high: 6.40, max: 4.76, market: "港股"},
+        {code: "000016", name: "上证50", metric: "盈利收益率", min: 14.50, low: 10.00, high: 6.40, max: 2.22, market: "A股"},
+        {code: "HSCEI", name: "H股指数", metric: "盈利收益率", min: 17.50, low: 10.00, high: 6.40, max: 3.45, market: "港股"},
+        {code: "399812", name: "中证养老", metric: "市盈率", min: 17.00, low: 21.00, high: 27.00, max: 36.00, market: "A股"},
+        {code: "931187", name: "科技100", metric: "市盈率", min: 18.00, low: 26.00, high: 40.00, max: 56.00, market: "A股"},
+        {code: "399550", name: "央视50", metric: "盈利收益率", min: 16.60, low: 10.00, high: 6.40, max: 2.50, market: "A股"},
+        {code: "399967", name: "军工行业", metric: "市净率", min: 2.10, low: 2.60, high: 4.00, max: 9.20, market: "A股"},
+        {code: "NDX", name: "纳斯达克100", metric: "市盈率", min: 15.00, low: 20.00, high: 30.00, max: 85.00, market: "美股"},
+        {code: "399986", name: "银行行业", metric: "市净率", min: 0.75, low: 0.90, high: 1.15, max: 1.40, market: "A股"},
+        {code: "SPX", name: "标普500", metric: "市盈率", min: 5.80, low: 15.00, high: 25.00, max: 44.00, market: "美股"},
+        {code: "000010", name: "上证180", metric: "盈利收益率", min: 13.90, low: 10.00, high: 6.40, max: 2.17, market: "A股"},
+        {code: "000827", name: "环保行业", metric: "市净率", min: 1.82, low: 2.30, high: 3.00, max: 5.90, market: "A股"},
+        {code: "399702", name: "基本面120", metric: "市盈率", min: 13.00, low: 18.00, high: 22.00, max: 60.00, market: "A股"},
+        {code: "399701", name: "基本面60", metric: "市盈率", min: 12.00, low: 17.00, high: 20.00, max: 60.00, market: "A股"},
+        {code: "399330", name: "深证100", metric: "市盈率", min: 12.00, low: 18.00, high: 24.00, max: 64.00, market: "A股"},
+        {code: "399001", name: "深证成指", metric: "市盈率", min: 11.00, low: 15.00, high: 30.00, max: 62.00, market: "A股"},
+        {code: "000903", name: "中证100", metric: "市盈率", min: 7.00, low: 11.00, high: 15.00, max: 45.00, market: "A股"},
+        {code: "SPHCMSHP", name: "香港中小", metric: "市盈率", min: 8.40, low: 12.00, high: 17.00, max: 20.00, market: "港股"},
+        {code: "000688", name: "科创50", metric: "市盈率", min: 35.00, low: 50.00, high: 80.00, max: 100.00, market: "A股"},
+        {code: "HSCAIT", name: "A股龙头", metric: "市盈率", min: 8.00, low: 11.00, high: 13.00, max: 15.00, market: "港股"}
+    ];
+
+    createApp({
+        data() {
+            return {
+                list: [],
+                searchQuery: '',
+                currentTab: 'all', // 'all' or 'starred'
+                showConfig: false,
+                isLoading: false,
+                lastUpdateDate: '',
+                lastError: '',
+                isChecking: false,
+                availableModels: [],
+                checkError: '',
+                
+                // Config
+                apiKey: localStorage.getItem('val_key_diag') || '',
+                model: localStorage.getItem('val_model_diag') || 'gemini-1.5-flash-latest',
+                baseUrl: localStorage.getItem('val_url_diag') || 'https://generativelanguage.googleapis.com',
+
+                // Temp vars for config modal
+                tempApiKey: '',
+                tempModel: '',
+                tempBaseUrl: ''
+            }
+        },
+        mounted() {
+            this.loadData();
+            this.tempApiKey = this.apiKey;
+            this.tempModel = this.model;
+            this.tempBaseUrl = this.baseUrl;
+            if(!this.apiKey) setTimeout(() => this.showConfig = true, 500);
+        },
+        computed: {
+            starredCount() {
+                return this.list.filter(i => i.isStarred).length;
+            },
+            enrichedList() {
+                // 1. 过滤Tab (我的关注)
+                let tabFiltered = this.list;
+                if (this.currentTab === 'starred') {
+                    tabFiltered = this.list.filter(item => item.isStarred);
+                }
+
+                // 2. 过滤搜索
+                let result = tabFiltered.filter(item => 
+                    item.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
+                    item.code.toLowerCase().includes(this.searchQuery.toLowerCase())
+                );
+                
+                return result.map(item => {
+                    const val = item.currentVal;
+                    if (val === undefined || val === null) return { ...item, status: '-' };
+                    const isInverse = item.metric === '盈利收益率';
+                    let status = '正常';
+                    let distMin, distLow, distHigh, distMax;
+                    if (!isInverse) {
+                        if (val < item.low) status = '低估'; else if (val > item.high) status = '高估';
+                        distMin = (item.min - val) / val;
+                        distLow = (item.low - val) / val;
+                        distHigh = (item.high - val) / val;
+                        distMax = (item.max - val) / val;
+                    } else {
+                        if (val > item.low) status = '低估'; else if (val < item.high) status = '高估';
+                        distMin = (val - item.min) / val;
+                        distLow = (val - item.low) / val;
+                        distHigh = (val - item.high) / val;
+                        distMax = (val - item.max) / val;
+                    }
+                    return { ...item, status, distMin, distLow, distHigh, distMax };
+                });
+            }
+        },
+        methods: {
+            // --- 星标功能 ---
+            toggleStar(item) {
+                // 找到原数组中的对象进行修改，确保同步
+                const originalItem = this.list.find(i => i.code === item.code);
+                if (originalItem) {
+                    originalItem.isStarred = !originalItem.isStarred;
+                    this.saveData();
+                }
+            },
+
+            // --- 核心修复功能: 检测可用模型 ---
+            async checkModels() {
+                if (!this.tempApiKey) return alert('请先填写 API Key');
+                
+                this.isChecking = true;
+                this.checkError = '';
+                this.availableModels = [];
+                
+                // 使用 ListModels 接口
+                let baseUrl = (this.tempBaseUrl || 'https://generativelanguage.googleapis.com').replace(/\/+$/, '');
+                const url = `${baseUrl}/v1beta/models?key=${this.tempApiKey}`;
+
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const data = await res.json();
+                    
+                    if (data.models) {
+                        this.availableModels = data.models
+                            .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
+                            .map(m => m.name.replace('models/', ''))
+                            .filter(n => n.includes('gemini'));
+                    } else {
+                        throw new Error('返回数据格式异常');
+                    }
+                } catch (e) {
+                    this.checkError = e.message;
+                } finally {
+                    this.isChecking = false;
+                }
+            },
+
+            // --- 核心 AI 识别 ---
+            async handleImageUploadAI(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                if (!this.apiKey) {
+                    this.showConfig = true; 
+                    return;
+                }
+
+                this.isLoading = true;
+                this.lastError = '';
+                
+                try {
+                    const base64Image = await this.fileToBase64(file);
+                    const cleanBase64 = base64Image.split(',')[1];
+                    let baseUrl = this.baseUrl.replace(/\/+$/, '');
+                    let modelName = this.model.replace('models/', '');
+                    
+                    const url = `${baseUrl}/v1beta/models/${modelName}:generateContent?key=${this.apiKey}`;
+                    
+                    const payload = {
+                        contents: [{
+                            parts: [
+                                { text: "Extract stock index valuation data from this table image. Find 'Code', 'Name' and 'Current Value'. Return JSON array: [{\"code\": \"...\", \"name\": \"...\", \"current\": 12.3}]. No markdown." },
+                                { inline_data: { mime_type: "image/jpeg", data: cleanBase64 } }
+                            ]
+                        }]
+                    };
+
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.error?.message || `API Error ${res.status}`);
+                    }
+
+                    const data = await res.json();
+                    const text = data.candidates[0].content.parts[0].text;
+                    const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const extracted = JSON.parse(jsonStr);
+
+                    let count = 0;
+                    extracted.forEach(aiItem => {
+                        let target = this.list.find(l => l.code == aiItem.code);
+                        if (!target && aiItem.name) {
+                            target = this.list.find(l => l.name.includes(aiItem.name) || aiItem.name.includes(l.name));
+                        }
+                        if (target && aiItem.current) {
+                            target.currentVal = parseFloat(aiItem.current);
+                            count++;
+                        }
+                    });
+
+                    this.saveData();
+                    alert(`成功更新 ${count} 条数据！`);
+
+                } catch (err) {
+                    this.lastError = err.message;
+                    alert(`识别失败: ${err.message}`);
+                    this.showConfig = true;
+                } finally {
+                    this.isLoading = false;
+                    event.target.value = '';
+                }
+            },
+
+            // --- 基础功能 ---
+            loadData() {
+                const stored = localStorage.getItem('val_data_diag');
+                if (stored) {
+                    this.list = JSON.parse(stored);
+                    this.lastUpdateDate = localStorage.getItem('val_date_diag');
+                } else {
+                    this.list = JSON.parse(JSON.stringify(seedData));
+                    this.saveData();
+                }
+            },
+            saveData() {
+                localStorage.setItem('val_data_diag', JSON.stringify(this.list));
+                localStorage.setItem('val_date_diag', new Date().toLocaleDateString());
+                this.lastUpdateDate = new Date().toLocaleDateString();
+            },
+            saveConfig() {
+                this.apiKey = this.tempApiKey;
+                this.model = this.tempModel;
+                this.baseUrl = this.tempBaseUrl;
+                localStorage.setItem('val_key_diag', this.apiKey);
+                localStorage.setItem('val_model_diag', this.model);
+                localStorage.setItem('val_url_diag', this.baseUrl);
+                this.showConfig = false;
+                alert('设置已保存');
+            },
+            resetData() { if(confirm('重置数据？')) { this.list = JSON.parse(JSON.stringify(seedData)); this.saveData(); } },
+            manualEdit(item) {
+                const v = prompt(`修改 ${item.name} 当前值:`, item.currentVal || '');
+                if (v && !isNaN(v)) { item.currentVal = parseFloat(v); this.saveData(); }
+            },
+            fileToBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                });
+            },
+            getMetricClass(m) { if(m==='市盈率')return'metric-pe';if(m==='市净率')return'metric-pb';if(m==='市销率')return'metric-ps';return'metric-ey'; },
+            getStatusClass(s) { if(s==='低估')return'text-green-600 bg-green-100 font-bold px-2 rounded';if(s==='高估')return'text-red-600 bg-red-100 font-bold px-2 rounded';return'text-orange-500 bg-orange-50 px-2 rounded'; },
+            getColor(v) { if(v==null)return''; return v>=0?'text-green-600':'text-red-400'; },
+            formatPercent(v) { if(v==null)return'-'; return (v*100).toFixed(2)+'%'; }
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
