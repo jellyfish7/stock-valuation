@@ -2,131 +2,172 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>指数估值分析器 (私人定制版)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>指数估值追踪 (优化版)</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; }
-        .metric-badge { font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
-        .metric-pe { background-color: #dbeafe; color: #1e40af; } 
-        .metric-pb { background-color: #fce7f3; color: #9d174d; } 
-        .metric-ps { background-color: #ede9fe; color: #5b21b6; } 
-        .metric-ey { background-color: #dcfce7; color: #166534; } 
-        .spinner {
-            border: 3px solid rgba(0,0,0,0.1); width: 24px; height: 24px; border-radius: 50%;
-            border-left-color: #2563eb; animation: spin 1s linear infinite;
-        }
+        /* 基础字体与背景 */
+        body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; -webkit-font-smoothing: antialiased; }
+        
+        /* 颜色标签 */
+        .metric-badge { font-size: 0.7rem; padding: 1px 5px; border-radius: 4px; font-weight: 600; white-space: nowrap; }
+        .metric-pe { background-color: #e6f7ff; color: #096dd9; border: 1px solid #91d5ff; } 
+        .metric-pb { background-color: #fff0f6; color: #c41d7f; border: 1px solid #ffadd2; } 
+        .metric-ps { background-color: #f9f0ff; color: #531dab; border: 1px solid #d3adf7; } 
+        .metric-ey { background-color: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f; } 
+        
+        /* 加载动画 */
+        .spinner { border: 3px solid rgba(0,0,0,0.1); width: 24px; height: 24px; border-radius: 50%; border-left-color: #2563eb; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* 交互元素 */
         .star-btn { transition: transform 0.2s; }
         .star-btn:active { transform: scale(1.3); }
+        
+        /* Tab 样式 */
         .tab-active { background-color: #2563eb; color: white; border-color: #2563eb; }
         .tab-inactive { background-color: white; color: #4b5563; border-color: #e5e7eb; }
+        
+        /* 表格核心优化：防止换行 */
+        th, td { white-space: nowrap; }
+        
+        /* 隐藏滚动条但保留功能 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body>
 
-<div id="app" class="container mx-auto p-4 max-w-[1600px]">
+<div id="app" class="container mx-auto p-3 max-w-[1600px] pb-20">
     
-    <!-- 顶部栏 -->
-    <div class="bg-white rounded-xl shadow-sm p-4 mb-6 border border-gray-100 sticky top-0 z-30">
-        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div>
-                <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    <span class="text-2xl">🚀</span> 指数估值追踪
-                    <span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full">私人定制版</span>
-                </h1>
-                <p class="text-xs text-gray-500 mt-1">
-                    当前模型: <span class="font-mono font-bold text-blue-600">{{ model }}</span>
-                </p>
+    <!-- 顶部控制栏 -->
+    <div class="bg-white rounded-xl shadow-sm p-4 mb-4 border border-gray-100 sticky top-0 z-30">
+        <div class="flex flex-col gap-3">
+            <!-- 第一行：标题与日期 -->
+            <div class="flex justify-between items-start">
+                <div>
+                    <h1 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                        <span class="text-xl">🚀</span> 估值追踪
+                        <span class="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100">Pro</span>
+                    </h1>
+                    <!-- 动态显示的日期 -->
+                    <p class="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        📅 数据日期: 
+                        <span class="font-mono font-bold text-blue-600 bg-blue-50 px-1 rounded">
+                            {{ lastUpdateDate || '未上传' }}
+                        </span>
+                    </p>
+                </div>
+                
+                <!-- 配置按钮 (精简) -->
+                <button @click="showConfig = true" class="text-gray-400 hover:text-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                </button>
             </div>
 
-            <div class="flex gap-3 items-center">
-                <button @click="showConfig = true" :class="apiKey ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200'" class="border px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:brightness-95 transition">
-                    {{ apiKey ? '⚙️ 配置 API' : '⚠️未配置 API' }}
-                </button>
-
-                <label class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow cursor-pointer text-sm font-bold flex items-center gap-2 transition active:scale-95">
+            <!-- 第二行：主要操作 -->
+            <div class="flex gap-2">
+                <!-- 上传按钮 -->
+                <label class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg shadow-md cursor-pointer text-sm font-bold flex items-center justify-center gap-2 transition active:scale-95">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                    <span>上传截图</span>
+                    <span>上传今日截图</span>
                     <input type="file" @change="handleImageUploadAI" accept="image/*" class="hidden">
                 </label>
-                
-                <button @click="resetData" class="text-xs text-gray-400 hover:text-red-500 underline px-2">重置</button>
             </div>
-        </div>
-        
-        <!-- Tab 与 搜索 -->
-        <div class="mt-4 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div class="flex rounded-lg shadow-sm w-full md:w-auto">
-                <button @click="currentTab = 'all'" 
-                        :class="['px-5 py-2 text-sm font-bold rounded-l-lg border transition', currentTab === 'all' ? 'tab-active' : 'tab-inactive']">
-                    📋 全部
-                    <span class="ml-1 text-xs opacity-70 bg-black/10 px-1.5 rounded-full">{{ list.length }}</span>
-                </button>
-                <button @click="currentTab = 'starred'" 
-                        :class="['px-5 py-2 text-sm font-bold rounded-r-lg border-t border-b border-r transition', currentTab === 'starred' ? 'tab-active' : 'tab-inactive']">
-                    ⭐ 关注
-                    <span class="ml-1 text-xs opacity-70 bg-black/10 px-1.5 rounded-full">{{ starredCount }}</span>
-                </button>
+            
+            <!-- 第三行：Tabs 和 搜索 -->
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex rounded-lg shadow-sm bg-gray-100 p-1">
+                    <button @click="currentTab = 'all'" 
+                            :class="['px-3 py-1.5 text-xs font-bold rounded transition', currentTab === 'all' ? 'bg-white text-blue-600 shadow' : 'text-gray-500']">
+                        全部 <span class="ml-0.5 opacity-60">{{ list.length }}</span>
+                    </button>
+                    <button @click="currentTab = 'starred'" 
+                            :class="['px-3 py-1.5 text-xs font-bold rounded transition', currentTab === 'starred' ? 'bg-white text-amber-500 shadow' : 'text-gray-500']">
+                        ⭐ 关注 <span class="ml-0.5 opacity-60">{{ starredCount }}</span>
+                    </button>
+                </div>
+                <input v-model="searchQuery" type="text" placeholder="搜代码/名称..." class="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none">
             </div>
-            <input v-model="searchQuery" type="text" placeholder="🔍 搜索..." class="w-full md:w-64 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
         </div>
     </div>
 
-    <!-- 表格 -->
+    <!-- 表格容器 -->
     <div class="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto no-scrollbar">
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-3 py-3 text-center w-10 sticky left-0 bg-gray-50 z-20">⭐</th>
-                        <th class="px-4 py-3 text-left font-semibold text-gray-600 sticky left-10 bg-gray-50 z-10">名称</th>
-                        <th class="px-2 py-3 text-left font-semibold text-gray-600">指标</th>
-                        <th class="px-2 py-3 text-right text-gray-400 text-xs">最低</th>
-                        <th class="px-2 py-3 text-right text-green-700 bg-green-50/50">低估</th>
-                        <th class="px-2 py-3 text-right text-orange-700 bg-orange-50/50">高估</th>
-                        <th class="px-2 py-3 text-right text-gray-400 text-xs">最高</th>
-                        <th class="px-4 py-3 text-right font-bold text-blue-900 bg-blue-50 border-l border-blue-100">当前值</th>
-                        <th class="px-2 py-3 text-center font-bold bg-blue-50">状态</th>
-                        <th class="px-2 py-3 text-right text-gray-500 bg-gray-50 border-l">距最低</th>
-                        <th class="px-2 py-3 text-right text-gray-500 bg-green-50/30">距低估</th>
-                        <th class="px-2 py-3 text-right text-gray-500 bg-orange-50/30">距高估</th>
-                        <th class="px-2 py-3 text-right text-gray-500 bg-red-50/30">距最高</th>
+                        <!-- 固定的列：星标 -->
+                        <th class="px-2 py-3 text-center sticky left-0 bg-gray-50 z-20 w-8 border-r border-gray-200/50">⭐</th>
+                        <!-- 固定的列：名称 (增加阴影) -->
+                        <th class="px-3 py-3 text-left font-bold text-gray-700 sticky left-8 bg-gray-50 z-20 border-r border-gray-200 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.1)]">名称</th>
+                        
+                        <!-- 可滚动的列 -->
+                        <th class="px-2 py-3 text-left font-medium text-gray-500">指标</th>
+                        
+                        <!-- 当前值 (高亮) -->
+                        <th class="px-3 py-3 text-right font-black text-blue-700 bg-blue-50/50 border-l border-blue-100">当前</th>
+                        <th class="px-2 py-3 text-center font-bold text-gray-600 bg-blue-50/30">状态</th>
+
+                        <!-- 阈值与距离 -->
+                        <th class="px-2 py-3 text-right text-xs text-gray-400 border-l">最低</th>
+                        <th class="px-2 py-3 text-right font-bold text-green-700 bg-green-50/30">低估线</th>
+                        <th class="px-2 py-3 text-right font-bold text-orange-700 bg-orange-50/30">高估线</th>
+                        <th class="px-2 py-3 text-right text-xs text-gray-400">最高</th>
+                        
+                        <th class="px-2 py-3 text-right text-xs text-gray-500 border-l">距最低</th>
+                        <th class="px-2 py-3 text-right text-xs text-gray-500 bg-green-50/20">距低估</th>
+                        <th class="px-2 py-3 text-right text-xs text-gray-500 bg-orange-50/20">距高估</th>
+                        <th class="px-2 py-3 text-right text-xs text-gray-500">距最高</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
-                    <tr v-for="item in enrichedList" :key="item.code" class="hover:bg-gray-50 transition group">
-                        <td class="px-3 py-2 text-center sticky left-0 bg-white group-hover:bg-gray-50 z-20 border-r border-gray-50 cursor-pointer" 
+                    <tr v-for="item in enrichedList" :key="item.code" class="hover:bg-gray-50 transition group text-xs sm:text-sm">
+                        
+                        <!-- 星标 (固定) -->
+                        <td class="px-2 py-2.5 text-center sticky left-0 bg-white group-hover:bg-gray-50 z-20 border-r border-gray-100 cursor-pointer" 
                             @click="toggleStar(item)">
-                            <span class="star-btn text-lg block">{{ item.isStarred ? '⭐' : '☆' }}</span>
+                            <span class="star-btn text-base block">{{ item.isStarred ? '⭐' : '☆' }}</span>
                         </td>
-                        <td class="px-4 py-2 sticky left-10 bg-white group-hover:bg-gray-50 z-10 border-r border-gray-100">
-                            <div class="font-bold text-gray-800">{{ item.name }}</div>
-                            <div class="text-xs text-gray-400 font-mono">{{ item.code }}</div>
+
+                        <!-- 名称 (固定) -->
+                        <td class="px-3 py-2.5 sticky left-8 bg-white group-hover:bg-gray-50 z-20 border-r border-gray-200 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
+                            <div class="font-bold text-gray-800 truncate max-w-[80px] sm:max-w-none">{{ item.name }}</div>
+                            <div class="text-[10px] text-gray-400 font-mono scale-90 origin-left">{{ item.code }}</div>
                         </td>
-                        <td class="px-2 py-2">
+
+                        <td class="px-2 py-2.5">
                             <span :class="['metric-badge', getMetricClass(item.metric)]">{{ item.metric }}</span>
                         </td>
-                        <td class="px-2 py-2 text-right text-xs text-gray-400">{{ item.min.toFixed(2) }}</td>
-                        <td class="px-2 py-2 text-right font-medium text-green-700 bg-green-50/30">{{ item.low.toFixed(2) }}</td>
-                        <td class="px-2 py-2 text-right font-medium text-orange-700 bg-orange-50/30">{{ item.high.toFixed(2) }}</td>
-                        <td class="px-2 py-2 text-right text-xs text-gray-400">{{ item.max.toFixed(2) }}</td>
-                        <td class="px-4 py-2 text-right font-bold text-blue-900 bg-blue-50 border-l border-blue-100 cursor-pointer hover:bg-blue-100" @click="manualEdit(item)">
+
+                        <!-- 当前值 -->
+                        <td class="px-3 py-2.5 text-right font-bold text-blue-700 bg-blue-50/50 border-l border-blue-100 cursor-pointer" @click="manualEdit(item)">
                             {{ item.currentVal ? item.currentVal.toFixed(2) : '-' }}
                         </td>
-                        <td class="px-2 py-2 text-center bg-blue-50">
+                        <td class="px-2 py-2.5 text-center bg-blue-50/30">
                             <span v-if="item.status" :class="getStatusClass(item.status)">{{ item.status }}</span>
                         </td>
-                        <td class="px-2 py-2 text-right text-xs font-mono border-l" :class="getColor(item.distMin)">{{ formatPercent(item.distMin) }}</td>
-                        <td class="px-2 py-2 text-right text-xs font-mono bg-green-50/30" :class="getColor(item.distLow)">{{ formatPercent(item.distLow) }}</td>
-                        <td class="px-2 py-2 text-right text-xs font-mono bg-orange-50/30" :class="getColor(item.distHigh)">{{ formatPercent(item.distHigh) }}</td>
-                        <td class="px-2 py-2 text-right text-xs font-mono bg-red-50/30" :class="getColor(item.distMax)">{{ formatPercent(item.distMax) }}</td>
+
+                        <!-- 阈值 -->
+                        <td class="px-2 py-2.5 text-right text-gray-400 border-l">{{ item.min.toFixed(2) }}</td>
+                        <td class="px-2 py-2.5 text-right font-medium text-green-700 bg-green-50/30">{{ item.low.toFixed(2) }}</td>
+                        <td class="px-2 py-2.5 text-right font-medium text-orange-700 bg-orange-50/30">{{ item.high.toFixed(2) }}</td>
+                        <td class="px-2 py-2.5 text-right text-gray-400">{{ item.max.toFixed(2) }}</td>
+
+                        <!-- 距离 -->
+                        <td class="px-2 py-2.5 text-right font-mono text-gray-500 border-l" :class="getColor(item.distMin)">{{ formatPercent(item.distMin) }}</td>
+                        <td class="px-2 py-2.5 text-right font-mono text-gray-500 bg-green-50/20" :class="getColor(item.distLow)">{{ formatPercent(item.distLow) }}</td>
+                        <td class="px-2 py-2.5 text-right font-mono text-gray-500 bg-orange-50/20" :class="getColor(item.distHigh)">{{ formatPercent(item.distHigh) }}</td>
+                        <td class="px-2 py-2.5 text-right font-mono text-gray-500" :class="getColor(item.distMax)">{{ formatPercent(item.distMax) }}</td>
                     </tr>
+                    
+                    <!-- 空状态 -->
                     <tr v-if="enrichedList.length === 0">
-                        <td colspan="13" class="px-4 py-8 text-center text-gray-400 bg-gray-50">
-                            <div v-if="currentTab === 'starred'">暂无关注的指数，请去“全部”里添加</div>
-                            <div v-else>未找到数据</div>
+                        <td colspan="13" class="px-4 py-10 text-center text-gray-400 bg-gray-50">
+                            <div v-if="currentTab === 'starred'">暂无关注</div>
+                            <div v-else>无数据</div>
                         </td>
                     </tr>
                 </tbody>
@@ -134,44 +175,41 @@
         </div>
     </div>
 
+    <!-- 底部提示 -->
+    <div class="text-center mt-6 text-[10px] text-gray-300">
+        Powered by Gemini AI • Local Storage Only
+    </div>
+
     <!-- 配置弹窗 -->
-    <div v-if="showConfig" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
-        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg overflow-y-auto max-h-[90vh]">
-            <h2 class="text-xl font-bold mb-4">⚙️ 个人设置</h2>
-            <div class="space-y-4">
+    <div v-if="showConfig" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm">
+            <h2 class="text-lg font-bold mb-4">⚙️ 个人配置</h2>
+            <div class="space-y-3">
                 <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-1">Google Gemini API Key</label>
-                    <input v-model="tempApiKey" type="password" class="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                    <label class="block text-xs font-bold text-gray-500 mb-1">API Key</label>
+                    <input v-model="tempApiKey" type="password" class="w-full border rounded px-3 py-2 text-sm">
                 </div>
                 <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-1">API 地址 (国内需填反代)</label>
-                    <input v-model="tempBaseUrl" type="text" class="w-full border rounded-lg px-3 py-2 font-mono text-sm">
+                    <label class="block text-xs font-bold text-gray-500 mb-1">API URL</label>
+                    <input v-model="tempBaseUrl" type="text" class="w-full border rounded px-3 py-2 text-xs font-mono text-gray-600">
                 </div>
-                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                    <label class="block text-sm font-bold text-blue-800 mb-2">模型选择</label>
-                    <div class="flex gap-2">
-                        <input v-model="tempModel" type="text" class="flex-1 border rounded px-3 py-2 text-sm font-bold text-blue-700">
-                        <button @click="checkModels" :disabled="isChecking" class="bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50">
-                            {{ isChecking ? '...' : '🔍 检测' }}
-                        </button>
-                    </div>
-                    <div v-if="availableModels.length > 0" class="mt-2 flex flex-wrap gap-2">
-                        <span v-for="m in availableModels" :key="m" @click="tempModel = m" class="text-xs bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded cursor-pointer hover:bg-blue-100">{{ m }}</span>
-                    </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 mb-1">Model</label>
+                    <input v-model="tempModel" type="text" class="w-full border rounded px-3 py-2 text-sm font-bold text-blue-600 bg-blue-50">
                 </div>
             </div>
-            <div class="flex justify-end gap-3 mt-6 border-t pt-4">
-                <button @click="showConfig = false" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">取消</button>
-                <button @click="saveConfig" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">保存</button>
+            <div class="flex justify-end gap-2 mt-5">
+                <button @click="showConfig = false" class="px-3 py-2 text-sm text-gray-500 bg-gray-100 rounded">取消</button>
+                <button @click="saveConfig" class="px-3 py-2 text-sm bg-blue-600 text-white rounded font-bold">保存</button>
             </div>
         </div>
     </div>
 
-    <!-- 运行遮罩 -->
+    <!-- 加载中遮罩 -->
     <div v-if="isLoading" class="fixed inset-0 bg-white/95 z-50 flex flex-col items-center justify-center text-center">
-        <div class="spinner w-10 h-10 border-4 border-gray-200 border-l-blue-600 mb-4"></div>
-        <h3 class="text-xl font-bold text-slate-800">AI 正在阅读图片...</h3>
-        <p class="text-slate-500 text-sm mt-2 max-w-xs bg-gray-50 px-3 py-1 rounded border">模型: {{ model }}</p>
+        <div class="spinner w-8 h-8 border-4 border-gray-200 border-l-blue-600 mb-4"></div>
+        <h3 class="text-lg font-bold text-gray-800">AI 正在分析表格...</h3>
+        <p class="text-xs text-gray-500 mt-1">寻找日期与最新估值</p>
     </div>
 </div>
 
@@ -182,18 +220,12 @@
     // 👇👇👇【请在这里填入你的默认配置】👇👇👇
     // ============================================
     const DEFAULT_CONFIG = {
-        // 1. 你的 Google Gemini API Key
-        apiKey: "AIzaSyBuaRGDPT4K8__rW5r5zzwPcmlAm9SDndU", 
-        
-        // 2. 你刚才测试成功的模型 (如 gemini-2.5-flash 或 gemini-1.5-flash-latest)
-        model: "gemini-2.5-flash", 
-
-        // 3. API 地址 (如果之前填过反代地址，这里也要填；如果没填过，就保持默认)
-        baseUrl: "https://generativelanguage.googleapis.com" 
+        apiKey: "AIzaSyBuaRGDPT4K8__rW5r5zzwPcmlAm9SDndU", // 你的 Key
+        model: "gemini-2.5-flash", // 你的模型
+        baseUrl: "https://generativelanguage.googleapis.com" // 你的地址
     };
     // ============================================
 
-    // 初始数据
     const seedData = [
         {code: "930743", name: "生物科技", metric: "市盈率", min: 33.00, low: 57.00, high: 81.00, max: 135.00, market: "A股"},
         {code: "399989", name: "中证医疗", metric: "市盈率", min: 32.00, low: 55.00, high: 75.00, max: 140.00, market: "A股"},
@@ -259,20 +291,13 @@
                 currentTab: 'all',
                 showConfig: false,
                 isLoading: false,
-                lastUpdateDate: '',
-                lastError: '',
-                isChecking: false,
-                availableModels: [],
-                checkError: '',
+                lastUpdateDate: '', // 将从 AI 结果中提取
                 
-                // 优先读取本地存储，如果没有，则使用硬编码的默认值
                 apiKey: localStorage.getItem('val_key_diag') || DEFAULT_CONFIG.apiKey,
                 model: localStorage.getItem('val_model_diag') || DEFAULT_CONFIG.model,
                 baseUrl: localStorage.getItem('val_url_diag') || DEFAULT_CONFIG.baseUrl,
 
-                tempApiKey: '',
-                tempModel: '',
-                tempBaseUrl: ''
+                tempApiKey: '', tempModel: '', tempBaseUrl: ''
             }
         },
         mounted() {
@@ -280,7 +305,6 @@
             this.tempApiKey = this.apiKey;
             this.tempModel = this.model;
             this.tempBaseUrl = this.baseUrl;
-            // 如果默认配置为空且没有缓存，才弹窗
             if(!this.apiKey) setTimeout(() => this.showConfig = true, 500);
         },
         computed: {
@@ -316,61 +340,69 @@
         methods: {
             toggleStar(item) {
                 const originalItem = this.list.find(i => i.code === item.code);
-                if (originalItem) {
-                    originalItem.isStarred = !originalItem.isStarred;
-                    this.saveData();
-                }
-            },
-            async checkModels() {
-                if (!this.tempApiKey) return alert('请先填写 API Key');
-                this.isChecking = true;
-                this.checkError = '';
-                this.availableModels = [];
-                let baseUrl = (this.tempBaseUrl || 'https://generativelanguage.googleapis.com').replace(/\/+$/, '');
-                const url = `${baseUrl}/v1beta/models?key=${this.tempApiKey}`;
-                try {
-                    const res = await fetch(url);
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    const data = await res.json();
-                    if (data.models) {
-                        this.availableModels = data.models
-                            .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
-                            .map(m => m.name.replace('models/', ''))
-                            .filter(n => n.includes('gemini'));
-                    }
-                } catch (e) { this.checkError = e.message; } finally { this.isChecking = false; }
+                if (originalItem) { originalItem.isStarred = !originalItem.isStarred; this.saveData(); }
             },
             async handleImageUploadAI(event) {
                 const file = event.target.files[0];
                 if (!file) return;
                 if (!this.apiKey) { this.showConfig = true; return; }
-                this.isLoading = true; this.lastError = '';
+                this.isLoading = true; 
                 try {
                     const base64Image = await this.fileToBase64(file);
                     const cleanBase64 = base64Image.split(',')[1];
                     let baseUrl = this.baseUrl.replace(/\/+$/, '');
                     let modelName = this.model.replace('models/', '');
                     const url = `${baseUrl}/v1beta/models/${modelName}:generateContent?key=${this.apiKey}`;
+                    
+                    // 修改 Prompt，增加日期提取要求
+                    const promptText = `
+                        Analyze this stock valuation table image.
+                        1. Identify the date in the table header (e.g., 20251126 or 2025-11-26). It's usually above the 'Current Value' column.
+                        2. Extract rows: Code, Name, Current Value.
+                        
+                        Return strictly a JSON object (No Markdown):
+                        {
+                            "date": "YYYY-MM-DD",
+                            "items": [
+                                {"code": "...", "name": "...", "current": 12.3},
+                                ...
+                            ]
+                        }
+                        If date is not found, set "date" to null.
+                    `;
+
                     const payload = {
                         contents: [{ parts: [
-                            { text: "Extract stock index valuation data from this table image. Find 'Code', 'Name' and 'Current Value'. Return JSON array: [{\"code\": \"...\", \"name\": \"...\", \"current\": 12.3}]. No markdown." },
+                            { text: promptText },
                             { inline_data: { mime_type: "image/jpeg", data: cleanBase64 } }
                         ]}]
                     };
+                    
                     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                     if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || `API Error ${res.status}`); }
+                    
                     const data = await res.json();
                     const text = data.candidates[0].content.parts[0].text;
                     const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
-                    const extracted = JSON.parse(jsonStr);
+                    const result = JSON.parse(jsonStr); // Expecting { date: "...", items: [...] } or Array (fallback)
+
+                    // 兼容旧格式 (直接返回数组的情况)
+                    const extractedItems = Array.isArray(result) ? result : (result.items || []);
+                    const extractedDate = result.date || new Date().toISOString().split('T')[0]; // Fallback to today
+
                     let count = 0;
-                    extracted.forEach(aiItem => {
+                    extractedItems.forEach(aiItem => {
                         let target = this.list.find(l => l.code == aiItem.code);
                         if (!target && aiItem.name) target = this.list.find(l => l.name.includes(aiItem.name) || aiItem.name.includes(l.name));
                         if (target && aiItem.current) { target.currentVal = parseFloat(aiItem.current); count++; }
                     });
-                    this.saveData(); alert(`成功更新 ${count} 条数据！`);
-                } catch (err) { this.lastError = err.message; alert(`识别失败: ${err.message}`); this.showConfig = true; } finally { this.isLoading = false; event.target.value = ''; }
+                    
+                    // 更新日期
+                    this.lastUpdateDate = extractedDate;
+                    
+                    this.saveData(); 
+                    alert(`成功更新 ${count} 条数据！\n提取日期: ${extractedDate}`);
+                } catch (err) { alert(`识别失败: ${err.message}`); this.showConfig = true; } finally { this.isLoading = false; event.target.value = ''; }
             },
             loadData() {
                 const stored = localStorage.getItem('val_data_diag');
@@ -379,21 +411,21 @@
             },
             saveData() {
                 localStorage.setItem('val_data_diag', JSON.stringify(this.list));
-                localStorage.setItem('val_date_diag', new Date().toLocaleDateString());
-                this.lastUpdateDate = new Date().toLocaleDateString();
+                // 保存具体的提取日期，如果没有则用今天
+                localStorage.setItem('val_date_diag', this.lastUpdateDate || new Date().toLocaleDateString());
             },
             saveConfig() {
                 this.apiKey = this.tempApiKey; this.model = this.tempModel; this.baseUrl = this.tempBaseUrl;
                 localStorage.setItem('val_key_diag', this.apiKey);
                 localStorage.setItem('val_model_diag', this.model);
                 localStorage.setItem('val_url_diag', this.baseUrl);
-                this.showConfig = false; alert('设置已保存');
+                this.showConfig = false;
             },
-            resetData() { if(confirm('重置数据？')) { this.list = JSON.parse(JSON.stringify(seedData)); this.saveData(); } },
+            resetData() { if(confirm('重置数据？')) { this.list = JSON.parse(JSON.stringify(seedData)); this.lastUpdateDate = ''; this.saveData(); } },
             manualEdit(item) { const v = prompt(`修改 ${item.name} 当前值:`, item.currentVal || ''); if (v && !isNaN(v)) { item.currentVal = parseFloat(v); this.saveData(); } },
             fileToBase64(file) { return new Promise((r, j) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => r(reader.result); reader.onerror = j; }); },
             getMetricClass(m) { if(m==='市盈率')return'metric-pe';if(m==='市净率')return'metric-pb';if(m==='市销率')return'metric-ps';return'metric-ey'; },
-            getStatusClass(s) { if(s==='低估')return'text-green-600 bg-green-100 font-bold px-2 rounded';if(s==='高估')return'text-red-600 bg-red-100 font-bold px-2 rounded';return'text-orange-500 bg-orange-50 px-2 rounded'; },
+            getStatusClass(s) { if(s==='低估')return'text-green-600 bg-green-100 font-bold px-2 rounded text-[10px]';if(s==='高估')return'text-red-600 bg-red-100 font-bold px-2 rounded text-[10px]';return'text-orange-500 bg-orange-50 px-2 rounded text-[10px]'; },
             getColor(v) { if(v==null)return''; return v>=0?'text-green-600':'text-red-400'; },
             formatPercent(v) { if(v==null)return'-'; return (v*100).toFixed(2)+'%'; }
         }
