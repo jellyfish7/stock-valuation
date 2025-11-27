@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>指数估值分析器 (星标收藏版)</title>
+    <title>指数估值分析器 (私人定制版)</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -18,13 +18,10 @@
             border-left-color: #2563eb; animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        /* 星星动画 */
         .star-btn { transition: transform 0.2s; }
         .star-btn:active { transform: scale(1.3); }
         .tab-active { background-color: #2563eb; color: white; border-color: #2563eb; }
         .tab-inactive { background-color: white; color: #4b5563; border-color: #e5e7eb; }
-        .tab-inactive:hover { background-color: #f9fafb; }
     </style>
 </head>
 <body>
@@ -36,8 +33,8 @@
         <div class="flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
                 <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    <span class="text-2xl">⭐</span> 指数估值追踪
-                    <span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full border border-yellow-200">收藏版</span>
+                    <span class="text-2xl">🚀</span> 指数估值追踪
+                    <span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full">私人定制版</span>
                 </h1>
                 <p class="text-xs text-gray-500 mt-1">
                     当前模型: <span class="font-mono font-bold text-blue-600">{{ model }}</span>
@@ -59,24 +56,21 @@
             </div>
         </div>
         
-        <!-- 第二行：Tab切换 与 搜索 -->
+        <!-- Tab 与 搜索 -->
         <div class="mt-4 flex flex-col md:flex-row justify-between items-center gap-4">
-            
-            <!-- Tab 切换按钮 -->
             <div class="flex rounded-lg shadow-sm w-full md:w-auto">
                 <button @click="currentTab = 'all'" 
                         :class="['px-5 py-2 text-sm font-bold rounded-l-lg border transition', currentTab === 'all' ? 'tab-active' : 'tab-inactive']">
-                    📋 全部指数
+                    📋 全部
                     <span class="ml-1 text-xs opacity-70 bg-black/10 px-1.5 rounded-full">{{ list.length }}</span>
                 </button>
                 <button @click="currentTab = 'starred'" 
                         :class="['px-5 py-2 text-sm font-bold rounded-r-lg border-t border-b border-r transition', currentTab === 'starred' ? 'tab-active' : 'tab-inactive']">
-                    ⭐ 我的关注
+                    ⭐ 关注
                     <span class="ml-1 text-xs opacity-70 bg-black/10 px-1.5 rounded-full">{{ starredCount }}</span>
                 </button>
             </div>
-
-            <input v-model="searchQuery" type="text" placeholder="🔍 搜索名称或代码..." class="w-full md:w-64 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            <input v-model="searchQuery" type="text" placeholder="🔍 搜索..." class="w-full md:w-64 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
         </div>
     </div>
 
@@ -86,7 +80,7 @@
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-3 py-3 text-center w-10 sticky left-0 bg-gray-50 z-20">⭐</th> <!-- 星标列 -->
+                        <th class="px-3 py-3 text-center w-10 sticky left-0 bg-gray-50 z-20">⭐</th>
                         <th class="px-4 py-3 text-left font-semibold text-gray-600 sticky left-10 bg-gray-50 z-10">名称</th>
                         <th class="px-2 py-3 text-left font-semibold text-gray-600">指标</th>
                         <th class="px-2 py-3 text-right text-gray-400 text-xs">最低</th>
@@ -103,15 +97,10 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     <tr v-for="item in enrichedList" :key="item.code" class="hover:bg-gray-50 transition group">
-                        
-                        <!-- 星标按钮列 -->
                         <td class="px-3 py-2 text-center sticky left-0 bg-white group-hover:bg-gray-50 z-20 border-r border-gray-50 cursor-pointer" 
-                            @click="toggleStar(item)" title="添加/取消关注">
-                            <span class="star-btn text-lg block">
-                                {{ item.isStarred ? '⭐' : '☆' }}
-                            </span>
+                            @click="toggleStar(item)">
+                            <span class="star-btn text-lg block">{{ item.isStarred ? '⭐' : '☆' }}</span>
                         </td>
-
                         <td class="px-4 py-2 sticky left-10 bg-white group-hover:bg-gray-50 z-10 border-r border-gray-100">
                             <div class="font-bold text-gray-800">{{ item.name }}</div>
                             <div class="text-xs text-gray-400 font-mono">{{ item.code }}</div>
@@ -134,17 +123,10 @@
                         <td class="px-2 py-2 text-right text-xs font-mono bg-orange-50/30" :class="getColor(item.distHigh)">{{ formatPercent(item.distHigh) }}</td>
                         <td class="px-2 py-2 text-right text-xs font-mono bg-red-50/30" :class="getColor(item.distMax)">{{ formatPercent(item.distMax) }}</td>
                     </tr>
-                    
-                    <!-- 空状态提示 -->
                     <tr v-if="enrichedList.length === 0">
                         <td colspan="13" class="px-4 py-8 text-center text-gray-400 bg-gray-50">
-                            <div v-if="currentTab === 'starred'">
-                                <p class="text-lg">⭐ 暂无关注的指数</p>
-                                <p class="text-sm mt-2">请切换到“全部指数”，点击左侧的星星添加关注。</p>
-                            </div>
-                            <div v-else>
-                                未找到匹配的指数
-                            </div>
+                            <div v-if="currentTab === 'starred'">暂无关注的指数，请去“全部”里添加</div>
+                            <div v-else>未找到数据</div>
                         </td>
                     </tr>
                 </tbody>
@@ -152,50 +134,35 @@
         </div>
     </div>
 
-    <!-- 配置 & 诊断弹窗 -->
+    <!-- 配置弹窗 -->
     <div v-if="showConfig" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
         <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg overflow-y-auto max-h-[90vh]">
-            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">⚙️ API 配置 & 模型诊断</h2>
-            
+            <h2 class="text-xl font-bold mb-4">⚙️ 个人设置</h2>
             <div class="space-y-4">
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-1">Google Gemini API Key</label>
-                    <input v-model="tempApiKey" type="password" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="AIzaSy...">
+                    <input v-model="tempApiKey" type="password" class="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
-
                 <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-1">API 基础地址</label>
-                    <input v-model="tempBaseUrl" type="text" class="w-full border rounded-lg px-3 py-2 font-mono text-sm" placeholder="https://generativelanguage.googleapis.com">
+                    <label class="block text-sm font-bold text-gray-700 mb-1">API 地址 (国内需填反代)</label>
+                    <input v-model="tempBaseUrl" type="text" class="w-full border rounded-lg px-3 py-2 font-mono text-sm">
                 </div>
-
-                <!-- 模型选择 -->
                 <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                    <label class="block text-sm font-bold text-blue-800 mb-2">选择模型</label>
-                    <div class="flex gap-2 mb-2">
-                        <input v-model="tempModel" type="text" class="flex-1 border rounded px-3 py-2 text-sm font-bold text-blue-700" placeholder="点击下方检测...">
-                        <button @click="checkModels" :disabled="isChecking" class="bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1">
-                            <span v-if="isChecking" class="spinner border-white w-4 h-4"></span>
-                            <span>{{ isChecking ? '检测中...' : '🔍 检测模型' }}</span>
+                    <label class="block text-sm font-bold text-blue-800 mb-2">模型选择</label>
+                    <div class="flex gap-2">
+                        <input v-model="tempModel" type="text" class="flex-1 border rounded px-3 py-2 text-sm font-bold text-blue-700">
+                        <button @click="checkModels" :disabled="isChecking" class="bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50">
+                            {{ isChecking ? '...' : '🔍 检测' }}
                         </button>
                     </div>
-                    <div v-if="availableModels.length > 0" class="mt-2">
-                        <p class="text-xs text-gray-500 mb-1">可用模型 (点击选择):</p>
-                        <div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                            <span v-for="m in availableModels" :key="m" @click="tempModel = m" 
-                                  class="text-xs bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded cursor-pointer hover:bg-blue-100">
-                                {{ m }}
-                            </span>
-                        </div>
-                    </div>
-                    <div v-else-if="checkError" class="mt-2 text-xs text-red-500 bg-red-50 p-2 rounded">
-                        检测失败: {{ checkError }}
+                    <div v-if="availableModels.length > 0" class="mt-2 flex flex-wrap gap-2">
+                        <span v-for="m in availableModels" :key="m" @click="tempModel = m" class="text-xs bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded cursor-pointer hover:bg-blue-100">{{ m }}</span>
                     </div>
                 </div>
             </div>
-
             <div class="flex justify-end gap-3 mt-6 border-t pt-4">
                 <button @click="showConfig = false" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">取消</button>
-                <button @click="saveConfig" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold shadow-lg">保存设置</button>
+                <button @click="saveConfig" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">保存</button>
             </div>
         </div>
     </div>
@@ -204,15 +171,27 @@
     <div v-if="isLoading" class="fixed inset-0 bg-white/95 z-50 flex flex-col items-center justify-center text-center">
         <div class="spinner w-10 h-10 border-4 border-gray-200 border-l-blue-600 mb-4"></div>
         <h3 class="text-xl font-bold text-slate-800">AI 正在阅读图片...</h3>
-        <p class="text-slate-500 text-sm mt-2 max-w-xs bg-gray-50 px-3 py-1 rounded border">
-            使用模型: {{ model }}
-        </p>
+        <p class="text-slate-500 text-sm mt-2 max-w-xs bg-gray-50 px-3 py-1 rounded border">模型: {{ model }}</p>
     </div>
-
 </div>
 
 <script>
     const { createApp } = Vue;
+
+    // ============================================
+    // 👇👇👇【请在这里填入你的默认配置】👇👇👇
+    // ============================================
+    const DEFAULT_CONFIG = {
+        // 1. 你的 Google Gemini API Key
+        apiKey: "AIzaSyBuaRGDPT4K8__rW5r5zzwPcmlAm9SDndU", 
+        
+        // 2. 你刚才测试成功的模型 (如 gemini-2.5-flash 或 gemini-1.5-flash-latest)
+        model: "gemini-2.5-flash", 
+
+        // 3. API 地址 (如果之前填过反代地址，这里也要填；如果没填过，就保持默认)
+        baseUrl: "https://generativelanguage.googleapis.com" 
+    };
+    // ============================================
 
     // 初始数据
     const seedData = [
@@ -277,7 +256,7 @@
             return {
                 list: [],
                 searchQuery: '',
-                currentTab: 'all', // 'all' or 'starred'
+                currentTab: 'all',
                 showConfig: false,
                 isLoading: false,
                 lastUpdateDate: '',
@@ -286,12 +265,11 @@
                 availableModels: [],
                 checkError: '',
                 
-                // Config
-                apiKey: localStorage.getItem('val_key_diag') || '',
-                model: localStorage.getItem('val_model_diag') || 'gemini-1.5-flash-latest',
-                baseUrl: localStorage.getItem('val_url_diag') || 'https://generativelanguage.googleapis.com',
+                // 优先读取本地存储，如果没有，则使用硬编码的默认值
+                apiKey: localStorage.getItem('val_key_diag') || DEFAULT_CONFIG.apiKey,
+                model: localStorage.getItem('val_model_diag') || DEFAULT_CONFIG.model,
+                baseUrl: localStorage.getItem('val_url_diag') || DEFAULT_CONFIG.baseUrl,
 
-                // Temp vars for config modal
                 tempApiKey: '',
                 tempModel: '',
                 tempBaseUrl: ''
@@ -302,20 +280,15 @@
             this.tempApiKey = this.apiKey;
             this.tempModel = this.model;
             this.tempBaseUrl = this.baseUrl;
+            // 如果默认配置为空且没有缓存，才弹窗
             if(!this.apiKey) setTimeout(() => this.showConfig = true, 500);
         },
         computed: {
-            starredCount() {
-                return this.list.filter(i => i.isStarred).length;
-            },
+            starredCount() { return this.list.filter(i => i.isStarred).length; },
             enrichedList() {
-                // 1. 过滤Tab (我的关注)
                 let tabFiltered = this.list;
-                if (this.currentTab === 'starred') {
-                    tabFiltered = this.list.filter(item => item.isStarred);
-                }
+                if (this.currentTab === 'starred') tabFiltered = this.list.filter(item => item.isStarred);
 
-                // 2. 过滤搜索
                 let result = tabFiltered.filter(item => 
                     item.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
                     item.code.toLowerCase().includes(this.searchQuery.toLowerCase())
@@ -329,144 +302,80 @@
                     let distMin, distLow, distHigh, distMax;
                     if (!isInverse) {
                         if (val < item.low) status = '低估'; else if (val > item.high) status = '高估';
-                        distMin = (item.min - val) / val;
-                        distLow = (item.low - val) / val;
-                        distHigh = (item.high - val) / val;
-                        distMax = (item.max - val) / val;
+                        distMin = (item.min - val) / val; distLow = (item.low - val) / val;
+                        distHigh = (item.high - val) / val; distMax = (item.max - val) / val;
                     } else {
                         if (val > item.low) status = '低估'; else if (val < item.high) status = '高估';
-                        distMin = (val - item.min) / val;
-                        distLow = (val - item.low) / val;
-                        distHigh = (val - item.high) / val;
-                        distMax = (val - item.max) / val;
+                        distMin = (val - item.min) / val; distLow = (val - item.low) / val;
+                        distHigh = (val - item.high) / val; distMax = (val - item.max) / val;
                     }
                     return { ...item, status, distMin, distLow, distHigh, distMax };
                 });
             }
         },
         methods: {
-            // --- 星标功能 ---
             toggleStar(item) {
-                // 找到原数组中的对象进行修改，确保同步
                 const originalItem = this.list.find(i => i.code === item.code);
                 if (originalItem) {
                     originalItem.isStarred = !originalItem.isStarred;
                     this.saveData();
                 }
             },
-
-            // --- 核心修复功能: 检测可用模型 ---
             async checkModels() {
                 if (!this.tempApiKey) return alert('请先填写 API Key');
-                
                 this.isChecking = true;
                 this.checkError = '';
                 this.availableModels = [];
-                
-                // 使用 ListModels 接口
                 let baseUrl = (this.tempBaseUrl || 'https://generativelanguage.googleapis.com').replace(/\/+$/, '');
                 const url = `${baseUrl}/v1beta/models?key=${this.tempApiKey}`;
-
                 try {
                     const res = await fetch(url);
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     const data = await res.json();
-                    
                     if (data.models) {
                         this.availableModels = data.models
                             .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
                             .map(m => m.name.replace('models/', ''))
                             .filter(n => n.includes('gemini'));
-                    } else {
-                        throw new Error('返回数据格式异常');
                     }
-                } catch (e) {
-                    this.checkError = e.message;
-                } finally {
-                    this.isChecking = false;
-                }
+                } catch (e) { this.checkError = e.message; } finally { this.isChecking = false; }
             },
-
-            // --- 核心 AI 识别 ---
             async handleImageUploadAI(event) {
                 const file = event.target.files[0];
                 if (!file) return;
-                if (!this.apiKey) {
-                    this.showConfig = true; 
-                    return;
-                }
-
-                this.isLoading = true;
-                this.lastError = '';
-                
+                if (!this.apiKey) { this.showConfig = true; return; }
+                this.isLoading = true; this.lastError = '';
                 try {
                     const base64Image = await this.fileToBase64(file);
                     const cleanBase64 = base64Image.split(',')[1];
                     let baseUrl = this.baseUrl.replace(/\/+$/, '');
                     let modelName = this.model.replace('models/', '');
-                    
                     const url = `${baseUrl}/v1beta/models/${modelName}:generateContent?key=${this.apiKey}`;
-                    
                     const payload = {
-                        contents: [{
-                            parts: [
-                                { text: "Extract stock index valuation data from this table image. Find 'Code', 'Name' and 'Current Value'. Return JSON array: [{\"code\": \"...\", \"name\": \"...\", \"current\": 12.3}]. No markdown." },
-                                { inline_data: { mime_type: "image/jpeg", data: cleanBase64 } }
-                            ]
-                        }]
+                        contents: [{ parts: [
+                            { text: "Extract stock index valuation data from this table image. Find 'Code', 'Name' and 'Current Value'. Return JSON array: [{\"code\": \"...\", \"name\": \"...\", \"current\": 12.3}]. No markdown." },
+                            { inline_data: { mime_type: "image/jpeg", data: cleanBase64 } }
+                        ]}]
                     };
-
-                    const res = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!res.ok) {
-                        const err = await res.json();
-                        throw new Error(err.error?.message || `API Error ${res.status}`);
-                    }
-
+                    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || `API Error ${res.status}`); }
                     const data = await res.json();
                     const text = data.candidates[0].content.parts[0].text;
                     const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
                     const extracted = JSON.parse(jsonStr);
-
                     let count = 0;
                     extracted.forEach(aiItem => {
                         let target = this.list.find(l => l.code == aiItem.code);
-                        if (!target && aiItem.name) {
-                            target = this.list.find(l => l.name.includes(aiItem.name) || aiItem.name.includes(l.name));
-                        }
-                        if (target && aiItem.current) {
-                            target.currentVal = parseFloat(aiItem.current);
-                            count++;
-                        }
+                        if (!target && aiItem.name) target = this.list.find(l => l.name.includes(aiItem.name) || aiItem.name.includes(l.name));
+                        if (target && aiItem.current) { target.currentVal = parseFloat(aiItem.current); count++; }
                     });
-
-                    this.saveData();
-                    alert(`成功更新 ${count} 条数据！`);
-
-                } catch (err) {
-                    this.lastError = err.message;
-                    alert(`识别失败: ${err.message}`);
-                    this.showConfig = true;
-                } finally {
-                    this.isLoading = false;
-                    event.target.value = '';
-                }
+                    this.saveData(); alert(`成功更新 ${count} 条数据！`);
+                } catch (err) { this.lastError = err.message; alert(`识别失败: ${err.message}`); this.showConfig = true; } finally { this.isLoading = false; event.target.value = ''; }
             },
-
-            // --- 基础功能 ---
             loadData() {
                 const stored = localStorage.getItem('val_data_diag');
-                if (stored) {
-                    this.list = JSON.parse(stored);
-                    this.lastUpdateDate = localStorage.getItem('val_date_diag');
-                } else {
-                    this.list = JSON.parse(JSON.stringify(seedData));
-                    this.saveData();
-                }
+                if (stored) { this.list = JSON.parse(stored); this.lastUpdateDate = localStorage.getItem('val_date_diag'); }
+                else { this.list = JSON.parse(JSON.stringify(seedData)); this.saveData(); }
             },
             saveData() {
                 localStorage.setItem('val_data_diag', JSON.stringify(this.list));
@@ -474,28 +383,15 @@
                 this.lastUpdateDate = new Date().toLocaleDateString();
             },
             saveConfig() {
-                this.apiKey = this.tempApiKey;
-                this.model = this.tempModel;
-                this.baseUrl = this.tempBaseUrl;
+                this.apiKey = this.tempApiKey; this.model = this.tempModel; this.baseUrl = this.tempBaseUrl;
                 localStorage.setItem('val_key_diag', this.apiKey);
                 localStorage.setItem('val_model_diag', this.model);
                 localStorage.setItem('val_url_diag', this.baseUrl);
-                this.showConfig = false;
-                alert('设置已保存');
+                this.showConfig = false; alert('设置已保存');
             },
             resetData() { if(confirm('重置数据？')) { this.list = JSON.parse(JSON.stringify(seedData)); this.saveData(); } },
-            manualEdit(item) {
-                const v = prompt(`修改 ${item.name} 当前值:`, item.currentVal || '');
-                if (v && !isNaN(v)) { item.currentVal = parseFloat(v); this.saveData(); }
-            },
-            fileToBase64(file) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(file);
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = reject;
-                });
-            },
+            manualEdit(item) { const v = prompt(`修改 ${item.name} 当前值:`, item.currentVal || ''); if (v && !isNaN(v)) { item.currentVal = parseFloat(v); this.saveData(); } },
+            fileToBase64(file) { return new Promise((r, j) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => r(reader.result); reader.onerror = j; }); },
             getMetricClass(m) { if(m==='市盈率')return'metric-pe';if(m==='市净率')return'metric-pb';if(m==='市销率')return'metric-ps';return'metric-ey'; },
             getStatusClass(s) { if(s==='低估')return'text-green-600 bg-green-100 font-bold px-2 rounded';if(s==='高估')return'text-red-600 bg-red-100 font-bold px-2 rounded';return'text-orange-500 bg-orange-50 px-2 rounded'; },
             getColor(v) { if(v==null)return''; return v>=0?'text-green-600':'text-red-400'; },
